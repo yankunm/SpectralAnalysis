@@ -3,10 +3,9 @@
 ## Python Version
 Tested with: **Python 3.12.0**
 
-## Setting Up Environment
+## Getting Started
 
+Regenerate All Plots:
 ```
-python3.12 -m venv .venv 
-source .venv/bin/activate
-pip install -r requirements.txt
+bash generate_all_plots.sh
 ```
