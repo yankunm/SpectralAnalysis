@@ -1,12 +1,12 @@
-# SpectralAnalysis
+# Spectral Analysis of MetaLens
 
 ## Python Version
-Tested with: **Python 3.9.11**
+Tested with: **Python 3.12.0**
 
 ## Setting Up Environment
 
 ```
-python3 -m venv .venv 
+python3.12 -m venv .venv 
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
