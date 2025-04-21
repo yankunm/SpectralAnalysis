@@ -1,0 +1,23 @@
+{
+    "red": {
+        "input_folder": "Data/Red_Solved",
+        "output_folder": "Plots/Red",
+        "reference_file": "Red_Solved_for_Radius_50[nm].csv",
+        "wavelength": 632,
+        "color": "red"
+    },
+    "green": {
+        "input_folder": "Data/Green_Solved",
+        "output_folder": "Plots/Green",
+        "reference_file": "Green_Solved_for_Radius_50[nm].csv",
+        "wavelength": 532,
+        "color": "green"
+    },
+    "blue": {
+        "input_folder": "Data/Blue_Solved",
+        "output_folder": "Plots/Blue",
+        "reference_file": "Blue_Solved_for_Radius_50[nm].csv",
+        "wavelength": 460,
+        "color": "blue"
+    }
+}
