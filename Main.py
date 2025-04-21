@@ -21,7 +21,7 @@ if __name__ == '__main__':
             wavelength=config["wavelength"],
             color=config["color"]
         )
-        print("Generating all plots...")
+        print(f"Generating all plots for {key} MetaLens...")
         processor.process_all()
         print("DONE.")
     
