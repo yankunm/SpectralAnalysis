@@ -1,67 +1,22 @@
 import os
 import logging
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import FancyArrowPatch
 
 class Plotter:
-    def __init__(self, input_folder, output_folder, reference_file, wavelength, color):
+    def __init__(self, input_folder, output_folder, wavelength, color):
         self.input_folder = input_folder
         self.output_folder = output_folder
-        self.reference_file = reference_file
         self.wavelength = wavelength
         self.color = color
-        self.reference_df = None
-
+        self.fontsize = 17
+        self.yvallabel = 0.07
         os.makedirs(self.output_folder, exist_ok=True)
         
-    def rtp(self, x, y):
-        r = np.sqrt(x**2 + y**2)
-        theta = np.arctan2(y, x)
-        return r, theta
-    
-    def process_file(self, file_path, ref=False):
-        # Read the CSV, skipping comment lines starting with '%'
-        logging.info(f"Reading CSV: {file_path}")
-        df = pd.read_csv(file_path, skiprows=1, comment='%', header=None)
-        
-        # Rename columns for clarity
-        df.columns = ['lam', 'S21']
-        
-        # Convert wavelength from meters to nanometers
-        df['lam_nm'] = df['lam'] * 1e9
-        df['S21'] = df['S21'].str.replace('i', 'j').astype(complex)
-        df['real'] = df['S21'].apply(lambda z: z.real)
-        df['imag'] = df['S21'].apply(lambda z: z.imag)
-        
-        # Convert from polar to rectangular form
-        df[['|S21|', 'phase_rad']] = df.apply(
-            lambda row: pd.Series(self.rtp(float(row['real']), float(row['imag']))),
-            axis=1
-        )
-        df["|S21|^2"] = df["|S21|"] ** 2
-        df['phase_unwrapped'] = np.unwrap(df['phase_rad'])
-        df['phase_unwrapped_degrees'] = np.degrees(df['phase_unwrapped'])
-
-        # Compute the phase difference if needed
-        if not ref:
-            # logging.info("Computing phase gradient...")
-
-            # unwrap(arg50) - unwrap(arg70)
-            df['phase_diff'] = self.reference_df['phase_unwrapped'] - df['phase_unwrapped']
-            df['phase_diff_deg'] = np.degrees(df['phase_diff']) 
-            while (df['phase_diff_deg'] < 0).any():
-                df['phase_diff_deg'] = df['phase_diff_deg'] + 360
-
-            # Restore lam as a column for plotting
-            df = df.reset_index()
-        return df
-    
-    
-    def plot_data(self, df, filename, ref=False):
+    def plot_data(self, df, filename, ref=False, window_df=None):
         fig, ax = plt.subplots(1, 2, figsize=(16, 5))
-
-        # Magnitude plot
+        
+        # Transmittance plot
         ax[0].plot(df['lam_nm'], df['|S21|^2'], label='|T|^2', color=self.color)
         ax[0].set_xlabel('Wavelength λ (nm)')
         ax[0].set_ylabel('|T|^2')
@@ -70,21 +25,24 @@ class Plotter:
         ax[0].axvline(self.wavelength, color='black', linestyle='--', linewidth=1, label='Desired Wavelength')
         ax[0].legend()
         ax[0].set_ylim(0, 1)  # Set the y-axis to go from 0 to 1
-
+        ax[0].set_xlim(400, 800)  # Set the y-axis to go from 0 to 1
         idx = (df['lam_nm'] - self.wavelength).abs().idxmin()
         x_val = df.loc[idx, 'lam_nm']
         y_val = df.loc[idx, '|S21|^2']
         ax[0].plot(x_val, y_val, 'ko')
         ax[0].hlines(y_val, xmin=ax[0].get_xlim()[0], xmax=x_val, colors='black', linestyles='--')
-
-        # Phase plot
-        ax[1].set_xlabel('Wavelength λ (nm)')
-        # Annotate y-axis value
         ax[0].annotate(f'{y_val:.5f}',
                     xy=(ax[0].get_xlim()[0], y_val),
-                    xytext=(ax[0].get_xlim()[0], y_val - 0.05),
-                    fontsize=14,
+                    xytext=(ax[0].get_xlim()[0], y_val - self.yvallabel),
+                    fontsize=self.fontsize,
                     color='black')
+        ax[0].annotate(f'{self.wavelength:.0f} nm',
+                    xy=(self.wavelength, ax[1].get_ylim()[0]),
+                    xytext=(self.wavelength, ax[1].get_ylim()[0] - 10),  # adjust -10 as needed
+                    ha='center', va='top',
+                    fontsize=self.fontsize - 2,
+                    color='black')
+        
         if ref:
             ax[1].plot(df['lam_nm'], df['phase_unwrapped_degrees'], color=self.color)
             ax[1].set_ylabel('arg(T) (degrees)')
@@ -99,6 +57,7 @@ class Plotter:
         ax[1].axvline(self.wavelength, color='black', linestyle='--', linewidth=1, label='Desired Wavelength')
         ax[1].plot(x_val, y_val, 'ko')
         ax[1].legend()
+        ax[1].set_xlim(400, 800)  # Set the y-axis to go from 0 to 1
         ax[1].hlines(y_val, xmin=ax[1].get_xlim()[0], xmax=x_val, colors='black', linestyles='--')
 
         # Choose the correct y value depending on reference
@@ -107,35 +66,188 @@ class Plotter:
         else:
             y_val = df.loc[idx, 'phase_unwrapped_degrees']
 
-        # Plot black dot
         ax[1].plot(x_val, y_val, 'ko')  # black dot
-
-        # Vertical dashed line to x-axis
         ax[1].axvline(x_val, color='black', linestyle='--', linewidth=1)
-
-        # Horizontal dashed line to y-axis (extends to full axis)
         ax[1].hlines(y_val, xmin=ax[1].get_xlim()[0], xmax=x_val, colors='black', linestyles='--', linewidth=1)
-
-        # Annotate y-axis value
         ax[1].annotate(f'{y_val:.1f}°',
                     xy=(ax[1].get_xlim()[0], y_val),
                     xytext=(ax[1].get_xlim()[0], y_val + 10),
-                    fontsize=14,
+                    fontsize=self.fontsize,
+                    color='black')
+        ax[1].annotate(f'{self.wavelength:.0f} nm',
+                    xy=(self.wavelength, ax[1].get_ylim()[0]),
+                    xytext=(self.wavelength, ax[1].get_ylim()[0] - 10),  # adjust -10 as needed
+                    ha='center', va='top',
+                    fontsize=self.fontsize - 2,
                     color='black')
         
+        # annotate the transmittance
+        if not ref and window_df is not None:
+            lam_min = window_df['lam_nm'].min()
+            lam_max = window_df['lam_nm'].max()
+            max_T = window_df['|S21|^2'].max()
+            min_T = window_df['|S21|^2'].min()
+
+            # Vertical pink lines for lam_min and lam_max
+            ax[0].axvline(lam_min, color='magenta', linestyle='--', linewidth=1)
+            ax[0].axvline(lam_max, color='magenta', linestyle='--', linewidth=1)
+            ax[0].annotate(f'{lam_min:.1f} nm', xy=(lam_min, 0.05), rotation=90, color='magenta', fontsize=self.fontsize, ha='right')
+            ax[0].annotate(f'{lam_max:.1f} nm', xy=(lam_max, 0.05), rotation=90, color='magenta', fontsize=self.fontsize, ha='left')
+
+            # Horizontal pink lines for max_T and min_T
+            ax[0].hlines(max_T, xmin=lam_min, xmax=lam_max, colors='magenta', linestyles='--')
+            ax[0].hlines(min_T, xmin=lam_min, xmax=lam_max, colors='magenta', linestyles='--')
+
+            ax[0].text(0.98, 0.85,
+                    f'Max: {max_T*100:.2f}%',
+                    transform=ax[0].transAxes,
+                    ha='right', va='top',
+                    fontsize=self.fontsize, color='magenta')
+
+            ax[0].text(0.98, 0.75,
+                    f'Min: {min_T*100:.2f}%',
+                    transform=ax[0].transAxes,
+                    ha='right', va='top',
+                    fontsize=self.fontsize, color='magenta')
+            
+            ax[0].text(0.98, 0.65,
+                    f'A.M.: {(max_T - min_T)*100:.2f}%',
+                    transform=ax[0].transAxes,
+                    ha='right', va='top',
+                    fontsize=self.fontsize, color='magenta')
+            
+            # Annotate the phase plot with
+            # 1. horizontal pink line showing the plus and minus ten degrees from the center_phase
+            # 2. vertical pink lines showing their corresponding wavelengths
+                    # Use window_df to get lam_min, lam_max and ±10° bounds
+            phase_min = window_df['phase_diff_deg'].min()
+            phase_max = window_df['phase_diff_deg'].max()
+
+            # Horizontal pink lines at phase_min and phase_max (±10° around center)
+            # Horizontal dashed lines
+            ax[1].hlines([phase_min, phase_max],
+                        xmin=ax[1].get_xlim()[0],
+                        xmax=ax[1].get_xlim()[1],
+                        colors='magenta',
+                        linestyles='--')
+
+            # Labels to the left, aligned with line height
+            ax[1].annotate(f'{phase_min:.1f}°',
+                        xy=(ax[1].get_xlim()[0], phase_min),
+                        xytext=(ax[1].get_xlim()[0] - 5, phase_min),  # 5 units left
+                        fontsize=self.fontsize -2,
+                        color='magenta',
+                        ha='right',
+                        va='center')
+
+            ax[1].annotate(f'{phase_max:.1f}°',
+                        xy=(ax[1].get_xlim()[0], phase_max),
+                        xytext=(ax[1].get_xlim()[0] - 5, phase_max),
+                        fontsize=self.fontsize -2,
+                        color='magenta',
+                        ha='right',
+                        va='center')
+
+
+            # Vertical pink lines at lam_min and lam_max
+            ax[1].axvline(lam_min, color='magenta', linestyle='--', linewidth=1)
+            ax[1].axvline(lam_max, color='magenta', linestyle='--', linewidth=1)
+            # Add fixed text in the upper-right corner (axes coordinates)
+            ax[1].text(0.98, 0.85,
+                    f'Left: {lam_min:.2f} nm',
+                    transform=ax[1].transAxes,
+                    ha='right', va='top',
+                    fontsize=self.fontsize, color='magenta')
+
+            ax[1].text(0.98, 0.75,
+                    f'Right: {lam_max:.2f} nm',
+                    transform=ax[1].transAxes,
+                    ha='right', va='top',
+                    fontsize=self.fontsize, color='magenta')
+            
+            bandwidth_nm = lam_max - lam_min
+            ax[1].text(0.98, 0.65,
+                    f'Bandwidth: {bandwidth_nm:.2f} nm',
+                    transform=ax[1].transAxes,
+                    ha='right', va='top',
+                    fontsize=self.fontsize, color='magenta')
+
+            # Use axis limits for stable coordinate mapping
+            xlim = ax[1].get_xlim()
+            x_range = xlim[1] - xlim[0]
+
+            # Normalize lam_min and lam_max to axes [0, 1] using the current x-axis limits
+            start = (lam_min - xlim[0]) / x_range
+            end = (lam_max - xlim[0]) / x_range
+            arrow_y = 0.50  # position below the x-axis
+
+            # Draw arrow in axes coordinates
+            arrow = FancyArrowPatch(
+                (start, arrow_y), (end, arrow_y),
+                transform=ax[1].transAxes,
+                arrowstyle='<->', color='magenta',
+                linewidth=3, mutation_scale=15
+            )
+            ax[1].add_patch(arrow)
+
+       
         plt.tight_layout()
         plt.savefig(f'{self.output_folder}/{filename}.png')
         logging.info(f"Saved plot as {filename}.png")
     
-    def process_all(self):
-        # reference file
-        reference_path = os.path.join(self.input_folder, self.reference_file)
-        self.reference_df = self.process_file(reference_path, ref=True)
-        self.plot_data(self.reference_df, self.reference_file[:-4], ref=True)
+    def plot_tolerances(self, start, end, boo, am, desired_tolerance=10):
+        tolerances = list(range(start, end))
+        idx = tolerances.index(desired_tolerance)
+        desired_bw = boo[idx]
+        desired_am = am[idx]
 
-        for fname in os.listdir(self.input_folder):
-            if not fname.endswith('.csv') or fname == self.reference_file:
-                continue
-            file_path = os.path.join(self.input_folder, fname)
-            df = self.process_file(file_path)
-            self.plot_data(df, fname[:-4])
+        # Bandwidth plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(tolerances, boo, 'o-', color=self.color, label='Min Bandwidth')
+        plt.plot(desired_tolerance, desired_bw, 'ko')  # black point
+
+        # Dashed lines to the point only
+        plt.plot([desired_tolerance, desired_tolerance], [0, desired_bw],
+                color='black', linestyle='--', linewidth=1)
+        plt.plot([start, desired_tolerance], [desired_bw, desired_bw],
+                color='black', linestyle='--', linewidth=1)
+
+        # Label near left edge
+        plt.text(start + 0.5, desired_bw + 1.5,
+                f'{desired_bw:.1f} nm',
+                color='black', fontsize=self.fontsize)
+
+        plt.xlabel('Tolerance (± degrees)')
+        plt.ylabel('Bandwidth of Operation [nm]')
+        plt.title('Tolerance Sweep vs Bandwidth')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.xlim(start, end)
+        plt.savefig(os.path.join(self.output_folder, 'tolerance_vs_bandwidth.png'))
+        plt.close()
+
+        # Amplitude Modulation plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(tolerances, am, 's--', color=self.color, label='Max Amplitude Modulation')
+        plt.plot(desired_tolerance, desired_am, 'ko')
+
+        # Dashed lines to the point only
+        plt.plot([desired_tolerance, desired_tolerance], [0, desired_am],
+                color='black', linestyle='--', linewidth=1)
+        plt.plot([start, desired_tolerance], [desired_am, desired_am],
+                color='black', linestyle='--', linewidth=1)
+
+        # Label near left edge
+        plt.text(start + 0.5, desired_am + 0.03,
+                f'{desired_am * 100:.1f}%',
+                color='black', fontsize=self.fontsize)
+
+        plt.xlabel('Tolerance (± degrees)')
+        plt.ylabel('Amplitude Modulation [%]')
+        plt.title('Tolerance Sweep vs Amplitude Modulation')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.xlim(start, end)
+        plt.ylim(0, 1)
+        plt.savefig(os.path.join(self.output_folder, 'tolerance_vs_amplitude_modulation.png'))
+        plt.close()
