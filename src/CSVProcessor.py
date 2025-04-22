@@ -96,6 +96,8 @@ class CSVProcessor:
         amp_mod = max_T - min_T
         self.amp_mods.append(amp_mod)
     
+    # Generates transmittance and phase graphs based on data in
+    # the self.input_folder  
     def generate_plots(self):
         # reference file
         reference_path = os.path.join(self.input_folder, self.reference_file)
@@ -108,7 +110,12 @@ class CSVProcessor:
             file_path = os.path.join(self.input_folder, fname)
             df = self.process_file(file_path)
             self.plotter.plot_data(df, fname[:-4])
-                
+    
+    # Compute [bandwidth of operation] and [Amplitude Modulation]
+    #   at a given tolerance value (the phase difference tolerable in the phase gradient graph)
+    #
+    #   setting 'plot' to true plots the results as annotations on the 
+    #   transmittance and phase graphs    
     def results_analysis(self, tolerance, plot=False):
         # reference file
         reference_path = os.path.join(self.input_folder, self.reference_file)
@@ -136,8 +143,12 @@ class CSVProcessor:
         
         am = max(self.amp_mods)
         print(f"The Maximum Amplitude Modulation is {am * 100:.2f}% within ")
-        
-        
+    
+    # Sweep tolerance from 'start' to 'end' and compute the
+    #   [bandwidth of operation] and [Amplitude Modulation] 
+    #   at each tolerance value
+    #
+    #   setting 'plot' to true plots the results
     def tolerance_sweep(self, start, end, plot=False):
         # reference file
         reference_path = os.path.join(self.input_folder, self.reference_file)
@@ -157,9 +168,6 @@ class CSVProcessor:
                 window_df = self.compute_phase_bandwidth(df, t)
                 self.compute_amp_mod(window_df)
                 
-                # if plot:
-                #     self.plotter.plot_data(df, fname[:-4], window_df=window_df)
-
             # Now that the bandwidths for this metalens is filled up
             # find the limiting bandwidth
             boo.append(min(self.bandwidths))
@@ -171,8 +179,6 @@ class CSVProcessor:
         if plot:
             self.plotter.plot_tolerances(start, end, boo, am)
             
-        
-        
             
             
         
